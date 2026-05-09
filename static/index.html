@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>White-box Multi-Factor Search Engine</title>
+    <!-- Vue.js for reactivity -->
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <!-- Tailwind CSS for rapid styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Custom styles for the visualization bars */
+        .score-bar {
+            height: 12px;
+            border-radius: 6px;
+            overflow: hidden;
+            display: flex;
+            width: 100%;
+            background: #e5e7eb;
+            margin-top: 4px;
+            margin-bottom: 12px;
+        }
+        .score-segment-lexical { background-color: #3b82f6; transition: width 0.4s ease; }
+        .score-segment-semantic { background-color: #10b981; transition: width 0.4s ease; }
+        .score-segment-auth { background-color: #8b5cf6; transition: width 0.4s ease; }
+        
+        [v-cloak] { display: none; }
+        
+        /* Glassmorphism background for the header */
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.9);
+            backdrop-filter: blur(10px);
+        }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen">
+    <div id="app" v-cloak class="max-w-6xl mx-auto px-4 py-8">
+        
+        <!-- Header -->
+        <header class="text-center mb-10 pt-4">
+            <h1 class="text-4xl font-extrabold mb-3 text-slate-900 tracking-tight">
+                <span class="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-emerald-600">AI Multi-Factor</span> Search
+            </h1>
+            <p class="text-slate-500 font-medium">《网络搜索引擎》期末展示交互沙盒</p>
+        </header>
+
+        <!-- Search Control Panel (Sticky for easy interaction) -->
+        <div class="glass-panel p-6 rounded-2xl shadow-lg border border-slate-200 mb-8 sticky top-4 z-50">
+            
+            <!-- Search Input -->
+            <div class="flex flex-col md:flex-row gap-4 mb-6 relative">
+                <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                    <svg class="h-6 w-6 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                    </svg>
+                </div>
+                <input type="text" v-model="query" @keyup.enter="doSearch" 
+                    placeholder="Enter concepts, e.g., 'model interpretability' or 'neural networks'" 
+                    class="flex-1 pl-12 pr-4 py-4 rounded-xl border-2 border-slate-200 focus:border-blue-500 focus:outline-none focus:ring-4 focus:ring-blue-500/20 text-lg shadow-inner transition-all">
+                <button @click="doSearch" class="bg-slate-900 hover:bg-slate-800 text-white font-bold py-4 px-10 rounded-xl transition-colors shadow-md">
+                    Search
+                </button>
+            </div>
+
+            <!-- Algorithm Weights Configuration -->
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <!-- Lexical Controller -->
+                <div class="p-5 rounded-xl bg-blue-50/50 border border-blue-100 hover:border-blue-300 transition-colors">
+                    <div class="flex justify-between items-center mb-3">
+                        <label class="font-bold text-blue-800 flex items-center gap-2">
+                            <span class="w-3 h-3 rounded-full bg-blue-500 inline-block"></span> Lexical Score
+                        </label>
+                        <span class="text-sm font-mono font-bold text-blue-700 bg-blue-100 px-3 py-1 rounded-md">{{ weights.bm25.toFixed(1) }}</span>
+                    </div>
+                    <input type="range" v-model.number="weights.bm25" min="0" max="5" step="0.5" @change="debouncedSearch" class="w-full accent-blue-600 cursor-pointer">
+                    <p class="text-xs text-blue-600/70 mt-2 font-medium">BM25 Inverted Index Matching</p>
+                </div>
+                
+                <!-- Semantic Controller -->
+                <div class="p-5 rounded-xl bg-emerald-50/50 border border-emerald-100 hover:border-emerald-300 transition-colors">
+                    <div class="flex justify-between items-center mb-3">
+                        <label class="font-bold text-emerald-800 flex items-center gap-2">
+                            <span class="w-3 h-3 rounded-full bg-emerald-500 inline-block"></span> Semantic Vector
+                        </label>
+                        <span class="text-sm font-mono font-bold text-emerald-700 bg-emerald-100 px-3 py-1 rounded-md">{{ weights.sem.toFixed(1) }}</span>
+                    </div>
+                    <input type="range" v-model.number="weights.sem" min="0" max="5" step="0.5" @change="debouncedSearch" class="w-full accent-emerald-600 cursor-pointer">
+                    <p class="text-xs text-emerald-600/70 mt-2 font-medium">Deep Learning Cosine Similarity</p>
+                </div>
+
+                <!-- Authority Controller -->
+                <div class="p-5 rounded-xl bg-purple-50/50 border border-purple-100 hover:border-purple-300 transition-colors">
+                    <div class="flex justify-between items-center mb-3">
+                        <label class="font-bold text-purple-800 flex items-center gap-2">
+                            <span class="w-3 h-3 rounded-full bg-purple-500 inline-block"></span> Authority
+                        </label>
+                        <span class="text-sm font-mono font-bold text-purple-700 bg-purple-100 px-3 py-1 rounded-md">{{ weights.auth.toFixed(1) }}</span>
+                    </div>
+                    <input type="range" v-model.number="weights.auth" min="0" max="5" step="0.5" @change="debouncedSearch" class="w-full accent-purple-600 cursor-pointer">
+                    <p class="text-xs text-purple-600/70 mt-2 font-medium">Simulated PageRank / Citations</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Status Details -->
+        <div v-if="loading" class="flex flex-col items-center justify-center py-20">
+            <div class="animate-spin rounded-full h-14 w-14 border-4 border-slate-200 border-t-blue-600 mb-4"></div>
+            <p class="text-slate-600 font-medium">{{ loadingMsg }}</p>
+        </div>
+
+        <!-- Start Message -->
+        <div v-if="!loading && !hasSearched" class="text-center py-20 text-slate-400">
+            <svg class="mx-auto h-16 w-16 mb-4 opacity-50" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 002-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+            </svg>
+            <p class="text-lg">Set query and adjust weights to see how factors affect the ranking.</p>
+        </div>
+
+        <!-- Results List -->
+        <div v-if="!loading && results.length > 0" class="space-y-6 pb-20">
+            <div class="flex justify-between items-center text-sm font-bold text-slate-500 border-b border-slate-200 pb-2">
+                <span>RESULTS (TOP {{ results.length }})</span>
+                <span>FUSION SCORES</span>
+            </div>
+            
+            <div v-for="(item, index) in results" :key="item.paper.id" 
+                 class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 hover:shadow-lg transition-all group flex flex-col md:flex-row gap-6 relative overflow-hidden">
+                
+                <!-- Rank Indicator -->
+                <div class="absolute top-0 left-0 w-1.5 h-full bg-slate-200 group-hover:bg-blue-400 transition-colors"></div>
+                
+                <!-- Content Area -->
+                <div class="flex-1 pl-2">
+                    <div class="flex items-center gap-3 mb-2">
+                        <span class="bg-slate-100 text-slate-500 font-bold px-2 py-0.5 rounded text-xs">#{{ index + 1 }}</span>
+                        <a :href="item.paper.url" target="_blank" class="text-xl font-bold text-slate-900 group-hover:text-blue-600 transition-colors">
+                            {{ item.paper.title }}
+                        </a>
+                    </div>
+                    <div class="text-xs text-slate-500 mb-3 flex gap-4">
+                        <span><b class="text-slate-700">Authors:</b> {{ item.paper.authors.join(', ') }}</span>
+                        <span><b class="text-slate-700">Date:</b> {{ item.paper.published.split('T')[0] }}</span>
+                        <span><b class="text-slate-700">ArXiv ID:</b> {{ item.paper.id }}</span>
+                    </div>
+                    <p class="text-sm text-slate-600 leading-relaxed line-clamp-3 bg-slate-50 p-3 rounded-lg border border-slate-100">
+                        {{ item.paper.abstract }}
+                    </p>
+                </div>
+                
+                <!-- Score Interpretation Matrix (White-box area) -->
+                <div class="flex flex-col md:w-64 shrink-0 bg-slate-50 rounded-xl p-4 border border-slate-100">
+                    <div class="flex justify-between items-baseline mb-2">
+                        <div class="text-xs font-bold text-slate-400">Total Fusion Score</div>
+                        <div class="text-2xl font-black text-slate-800">{{ item.scores.final.toFixed(3) }}</div>
+                    </div>
+                    
+                    <!-- Visualization Bar -->
+                    <div class="score-bar" title="Score Breakdown">
+                        <div class="score-segment-lexical" :style="{ width: getWidth(item.scores.bm25, weights.bm25) + '%' }"></div>
+                        <div class="score-segment-semantic" :style="{ width: getWidth(item.scores.semantic, weights.sem) + '%' }"></div>
+                        <div class="score-segment-auth" :style="{ width: getWidth(item.scores.authority, weights.auth) + '%' }"></div>
+                    </div>
+
+                    <!-- Breakdown Numbers -->
+                    <div class="space-y-1.5 mt-2">
+                        <div class="flex justify-between text-xs items-center">
+                            <span class="text-blue-700 font-medium flex items-center gap-1"><span class="w-2 h-2 rounded bg-blue-500 inline-block"></span> Lexical</span>
+                            <span class="text-slate-600 font-mono">{{ item.scores.bm25.toFixed(2) }} <span class="text-slate-400">× {{weights.bm25}}</span> = <b class="text-blue-700">{{ (item.scores.bm25 * weights.bm25).toFixed(2) }}</b></span>
+                        </div>
+                        <div class="flex justify-between text-xs items-center">
+                            <span class="text-emerald-700 font-medium flex items-center gap-1"><span class="w-2 h-2 rounded bg-emerald-500 inline-block"></span> Semantic</span>
+                            <span class="text-slate-600 font-mono">{{ item.scores.semantic.toFixed(2) }} <span class="text-slate-400">× {{weights.sem}}</span> = <b class="text-emerald-700">{{ (item.scores.semantic * weights.sem).toFixed(2) }}</b></span>
+                        </div>
+                        <div class="flex justify-between text-xs items-center">
+                            <span class="text-purple-700 font-medium flex items-center gap-1"><span class="w-2 h-2 rounded bg-purple-500 inline-block"></span> Authority</span>
+                            <span class="text-slate-600 font-mono">{{ item.scores.authority.toFixed(2) }} <span class="text-slate-400">× {{weights.auth}}</span> = <b class="text-purple-700">{{ (item.scores.authority * weights.auth).toFixed(2) }}</b></span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- No Results -->
+        <div v-if="!loading && hasSearched && results.length === 0" class="text-center py-20 bg-white rounded-2xl border border-slate-200">
+            <span class="text-4xl mb-4 block">👀</span>
+            <h3 class="text-xl font-bold text-slate-700 mb-2">No Matching Results</h3>
+            <p class="text-slate-500">The current algorithm weights filtered out everything, or no documents matched your query.</p>
+        </div>
+    </div>
+
+    <script>
+        const { createApp } = Vue;
+
+        createApp({
+            data() {
+                return {
+                    query: 'attention mechanism',
+                    weights: {
+                        bm25: 2.0,
+                        sem: 2.0,
+                        auth: 0.5
+                    },
+                    results: [],
+                    loading: false,
+                    loadingMsg: 'Searching algorithms...',
+                    hasSearched: false,
+                    searchTimeout: null
+                }
+            },
+            methods: {
+                debouncedSearch() {
+                    // Auto-search when sliding weights
+                    if (!this.hasSearched) return;
+                    clearTimeout(this.searchTimeout);
+                    this.searchTimeout = setTimeout(() => {
+                        this.doSearch();
+                    }, 300);
+                },
+                async doSearch() {
+                    if (!this.query.trim()) return;
+                    this.loading = true;
+                    this.hasSearched = true;
+                    
+                    try {
+                        const res = await fetch(`/api/search?q=${encodeURIComponent(this.query)}&w_bm25=${this.weights.bm25}&w_sem=${this.weights.sem}&w_auth=${this.weights.auth}&top_k=20`);
+                        const data = await res.json();
+                        
+                        if (data.status === 'loading') {
+                            this.loadingMsg = data.message;
+                            // Retry after delay while engine is downloading models & indexing
+                            setTimeout(this.doSearch, 3000); 
+                            return;
+                        }
+                        
+                        this.results = data.results;
+                        this.loadingMsg = 'Searching algorithms...';
+                    } catch (e) {
+                        console.error(e);
+                        alert("API Connection Error. Make sure main.py is running!");
+                    } finally {
+                        // Only clear loading if we aren't waiting on the background engine
+                        if(this.loadingMsg === 'Searching algorithms...') {
+                            this.loading = false;
+                        }
+                    }
+                },
+                getWidth(score, weight) {
+                    // Calculate visual width for the score segments
+                    // We dynamically scale based on the maximum possible single score
+                    const componentValue = score * weight;
+                    let maxCombined = 0;
+                    
+                    if (this.results.length > 0) {
+                        // Find the highest score locally to make bars look reasonably sized relative to each other
+                        maxCombined = Math.max(...this.results.map(r => 
+                            (r.scores.bm25*this.weights.bm25) + 
+                            (r.scores.semantic*this.weights.sem) + 
+                            (r.scores.authority*this.weights.auth)
+                        ));
+                    }
+                    
+                    if (maxCombined === 0) return 0;
+                    
+                    // Add 5% buffer so highest doesn't completely fill the bar, leaving round edge visible
+                    return (componentValue / (maxCombined * 1.05)) * 100;
+                }
+            }
+        }).mount('#app');
+    </script>
+</body>
+</html>
